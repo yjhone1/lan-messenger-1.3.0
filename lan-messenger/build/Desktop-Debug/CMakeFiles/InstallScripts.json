@@ -1,9 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/yjh/workspace/lan-messenger/build/Desktop-Debug/cmake_install.cmake",
-		"/home/yjh/workspace/lan-messenger/build/Desktop-Debug/lmcapp/cmake_install.cmake",
-		"/home/yjh/workspace/lan-messenger/build/Desktop-Debug/lmc/cmake_install.cmake"
-	],
-	"Parallel" : false
-}
