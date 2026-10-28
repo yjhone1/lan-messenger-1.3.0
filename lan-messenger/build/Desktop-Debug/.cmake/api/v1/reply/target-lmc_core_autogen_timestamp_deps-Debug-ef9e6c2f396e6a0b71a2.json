@@ -1,0 +1,82 @@
+{
+	"backtrace" : 0,
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : 
+		[
+			"lmc/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			}
+		]
+	},
+	"codemodelVersion" : 
+	{
+		"major" : 2,
+		"minor" : 9
+	},
+	"dependencies" : 
+	[
+		{
+			"backtrace" : 0,
+			"id" : "lmcapp::@8178d28804f6a0aff4d2"
+		}
+	],
+	"id" : "lmc_core_autogen_timestamp_deps::@98e9c00ac5b16aeee6b9",
+	"isGeneratorProvided" : true,
+	"name" : "lmc_core_autogen_timestamp_deps",
+	"orderDependencies" : 
+	[
+		{
+			"backtrace" : 0,
+			"id" : "Qt6::moc::@8178d28804f6a0aff4d2"
+		},
+		{
+			"backtrace" : 0,
+			"id" : "Qt6::uic::@8178d28804f6a0aff4d2"
+		},
+		{
+			"backtrace" : 0,
+			"id" : "Qt6::Core::@98e9c00ac5b16aeee6b9"
+		},
+		{
+			"backtrace" : 0,
+			"id" : "Qt6::Gui::@98e9c00ac5b16aeee6b9"
+		},
+		{
+			"backtrace" : 0,
+			"id" : "Qt6::Widgets::@98e9c00ac5b16aeee6b9"
+		},
+		{
+			"backtrace" : 0,
+			"id" : "Qt6::Network::@98e9c00ac5b16aeee6b9"
+		},
+		{
+			"backtrace" : 0,
+			"id" : "Qt6::Xml::@98e9c00ac5b16aeee6b9"
+		},
+		{
+			"backtrace" : 0,
+			"id" : "Qt6::Multimedia::@98e9c00ac5b16aeee6b9"
+		},
+		{
+			"backtrace" : 0,
+			"id" : "OpenSSL::Crypto::@98e9c00ac5b16aeee6b9"
+		},
+		{
+			"backtrace" : 0,
+			"id" : "lmcapp::@8178d28804f6a0aff4d2"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "lmc",
+		"source" : "lmc"
+	},
+	"sources" : [],
+	"type" : "UTILITY"
+}
