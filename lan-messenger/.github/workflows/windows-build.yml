@@ -1,0 +1,59 @@
+name: Windows Release Build
+
+on:
+  push:
+    tags:
+      - 'v*' # v1.0.0, v2.0 등 태그가 푸시될 때만 작동합니다.
+
+permissions:
+  contents: write # 빌드된 파일을 Release에 업로드하기 위해 필수적인 권한입니다.
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+
+    # 1. Qt 빌드 환경 구성
+    - name: Install Qt Environment
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '6.5.3'           # [수정 필요] 본인의 Qt 버전 입력 (예: 5.15.2 등)
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2019_64'  # [수정 필요] MinGW 사용 시 win64_mingw 변경
+        install-deps: 'true'
+
+    # 2. MSVC 컴파일러 연동 (MinGW 환경이라면 이 step은 삭제해도 됩니다)
+    - name: Set up MSVC Compiler
+      uses: ilammy/msvc-dev-cmd@v1
+
+    # 3. 소스 코드 외부에 임시 빌드 디렉토리를 생성하여 컴파일 (원본 소스 보호)
+    - name: Compile Project
+      run: |
+        mkdir build_output
+        cd build_output
+        qmake ..\lan-messenger.pro  # [수정 필요] 본인의 .pro 파일 이름으로 변경
+        nmake release
+
+    # 4. 윈도우 실행에 필요한 필수 DLL 수집 (windeployqt 자동화)
+    - name: Deploy Windows Dependencies
+      run: |
+        cd build_output\release
+        windeployqt lan-messenger.exe # [수정 필요] 생성되는 .exe 이름으로 변경
+
+    # 5. 실행 파일과 DLL들을 하나의 압축파일로 포장
+    - name: Compress Release Artifact
+      run: |
+        powershell Compress-Archive -Path build_output\release\* -DestinationPath lan-messenger-windows.zip
+
+    # 6. 원본 소스는 건드리지 않고, 압축된 실행 파일만 GitHub Release 탭에 업로드
+    - name: Upload to GitHub Releases
+      uses: softprops/action-gh-release@v2
+      with:
+        files: lan-messenger-windows.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
