@@ -16,7 +16,7 @@ jobs:
     - name: Checkout Source Code
       uses: actions/checkout@v4
 
-    # 1. Qt 6.10.2 및 MinGW 환경 설치
+    # 1. Qt 6.10.2 및 MinGW 컴파일러 환경 설치
     - name: Install Qt Environment
       uses: jurplel/install-qt-action@v4
       with:
@@ -26,48 +26,29 @@ jobs:
         arch: 'win64_mingw'
         install-deps: 'true'
 
-    # 2. 최신 OpenSSL 설치 (특정 버전 지정 삭제하여 404 차단)
-    - name: Install OpenSSL
-      run: |
-        choco install openssl --no-progress -y --ignore-checksums || true
-
-    # 3. CMake 구성 (OpenSSL 자동 경로 파악 및 빌드)
+    # 2. CMake 구성 (Windows 러너 내장 OpenSSL / MinGW 경로 연결)
     - name: Configure CMake
       shell: powershell
       run: |
-        # 윈도우 러너의 다양한 OpenSSL 위치 자동 파악
-        $sslDirs = @(
-          "C:\Program Files\OpenSSL-Win64",
-          "C:\Program Files\OpenSSL",
-          "C:\tools\php83",
-          "C:\ProgramData\chocolatey\lib\openssl"
-        )
-
-        $sslDir = $null
-        foreach ($dir in $sslDirs) {
-          if (Test-Path "$dir\include\openssl\evp.h") {
-            $sslDir = $dir
-            break
-          }
+        # 윈도우 러너 기본 설치 OpenSSL / MinGW 경로 탐색
+        $sslDir = "C:\Program Files\OpenSSL-Win64"
+        if (-not (Test-Path "$sslDir\include\openssl\evp.h")) {
+          $sslDir = "C:\Program Files\OpenSSL"
         }
 
-        if (-not $sslDir) {
-          # 기본 경로 할당
-          $sslDir = "C:\Program Files\OpenSSL-Win64"
-        }
-
-        Write-Host "Found OpenSSL Root Dir: $sslDir"
+        Write-Host "Using OpenSSL Directory: $sslDir"
 
         cmake -B build -G "MinGW Makefiles" `
           -DCMAKE_BUILD_TYPE=Release `
-          -DOPENSSL_ROOT_DIR="$sslDir"
+          -DOPENSSL_ROOT_DIR="$sslDir" `
+          -DOPENSSL_INCLUDE_DIR="$sslDir\include"
 
-    # 4. 프로젝트 컴파일 및 빌드
+    # 3. 프로젝트 컴파일/빌드
     - name: Build Project
       run: |
         cmake --build build --config Release
 
-    # 5. Windows 실행 필요 DLL 자동 수집 (OpenSSL DLL 포함)
+    # 4. Windows 실행 필요 DLL 자동 수집 (Qt & OpenSSL DLL)
     - name: Deploy Windows Dependencies
       shell: powershell
       run: |
@@ -77,22 +58,19 @@ jobs:
           windeployqt --release --no-compiler-runtime .
           
           # OpenSSL DLL 복사
-          $dlls = Get-ChildItem -Path "C:\Program Files", "C:\tools" -Recurse -Filter "libcrypto*.dll" -ErrorAction SilentlyContinue
-          foreach ($dll in $dlls) {
-            Copy-Item $dll.FullName . -ErrorAction SilentlyContinue
-          }
+          Get-ChildItem -Path "C:\Program Files\OpenSSL-Win64\bin", "C:\Program Files\OpenSSL\bin" -Filter "*.dll" -ErrorAction SilentlyContinue | Copy-Item -Destination . -ErrorAction SilentlyContinue
         } else {
           Write-Error "lmc.exe not found in build directory"
         }
 
-    # 6. Release 아티팩트 Zip 압축
+    # 5. Release 압축 파일 생성
     - name: Compress Release Artifact
       shell: powershell
       run: |
         $exeDir = (Get-ChildItem -Path build -Recurse -Filter "lmc.exe" | Select-Object -First 1).DirectoryName
         powershell Compress-Archive -Path "$exeDir\*" -DestinationPath "$env:GITHUB_WORKSPACE\lan-messenger-windows-x64.zip"
 
-    # 7. GitHub Release 업로드
+    # 6. GitHub Release 업로드
     - name: Upload to GitHub Releases
       uses: softprops/action-gh-release@v2
       with:
