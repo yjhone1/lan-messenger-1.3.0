@@ -16,7 +16,7 @@ jobs:
     - name: Checkout Source Code
       uses: actions/checkout@v4
 
-    # 1. Qt 6.10.2 및 MinGW 컴파일러 환경 설치
+    # 1. Qt 6.10.2 환경 설치
     - name: Install Qt Environment
       uses: jurplel/install-qt-action@v4
       with:
@@ -26,33 +26,42 @@ jobs:
         arch: 'win64_mingw'
         install-deps: 'true'
 
-    # 2. CMake 구성 및 빌드 (기본 MinGW Makefiles 사용)
+    # 2. Windows 러너에 OpenSSL 설치 (Chocolatey 활용)
+    - name: Install OpenSSL
+      run: |
+        choco install openssl --no-progress -y
+
+    # 3. CMake 구성 및 빌드 (OpenSSL 경로 명시)
     - name: Configure CMake
       run: |
-        cmake -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+        cmake -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DOPENSSL_ROOT_DIR="C:/Program Files/OpenSSL-Win64"
 
     - name: Build Project
       run: |
         cmake --build build --config Release
 
-    # 3. Windows 실행 필요 DLL 자동 수집
+    # 4. Windows 실행 필요 DLL 자동 수집 (OpenSSL DLL 포함)
     - name: Deploy Windows Dependencies
       run: |
         $exePath = (Get-ChildItem -Path build -Recurse -Filter "lmc.exe" | Select-Object -First 1)
         if ($exePath) {
           Set-Location $exePath.DirectoryName
           windeployqt --release --no-compiler-runtime .
+          # OpenSSL DLL도 출력 디렉터리로 복사
+          if (Test-Path "C:\Program Files\OpenSSL-Win64\bin\libssl-3-x64.dll") {
+            Copy-Item "C:\Program Files\OpenSSL-Win64\bin\*.dll" . -ErrorAction SilentlyContinue
+          }
         } else {
           Write-Error "lmc.exe not found in build directory"
         }
 
-    # 4. 결과물 Zip 압축
+    # 5. 결과물 Zip 압축
     - name: Compress Release Artifact
       run: |
         $exeDir = (Get-ChildItem -Path build -Recurse -Filter "lmc.exe" | Select-Object -First 1).DirectoryName
         powershell Compress-Archive -Path "$exeDir\*" -DestinationPath "$env:GITHUB_WORKSPACE\lan-messenger-windows-x64.zip"
 
-    # 5. GitHub Release 업로드
+    # 6. GitHub Release 업로드
     - name: Upload to GitHub Releases
       uses: softprops/action-gh-release@v2
       with:
