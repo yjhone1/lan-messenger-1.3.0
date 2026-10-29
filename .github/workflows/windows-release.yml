@@ -26,37 +26,48 @@ jobs:
         arch: 'win64_mingw'
         install-deps: 'true'
 
-    # 2. OpenSSL 3.x 안정 버전 명시적 설치 (Chocolatey version 고정)
-    - name: Install OpenSSL 3.x
+    # 2. 최신 OpenSSL 설치 (특정 버전 지정 삭제하여 404 차단)
+    - name: Install OpenSSL
       run: |
-        choco install openssl --version=3.3.1 -y --no-progress --force
+        choco install openssl --no-progress -y --ignore-checksums || true
 
-    # 3. CMake 구성 (OpenSSL 헤더/라이브러리 파일 직접 매핑)
+    # 3. CMake 구성 (OpenSSL 자동 경로 파악 및 빌드)
     - name: Configure CMake
       shell: powershell
       run: |
-        $sslDir = "C:\Program Files\OpenSSL-Win64"
-        if (-not (Test-Path $sslDir)) { $sslDir = "C:\Program Files\OpenSSL" }
+        # 윈도우 러너의 다양한 OpenSSL 위치 자동 파악
+        $sslDirs = @(
+          "C:\Program Files\OpenSSL-Win64",
+          "C:\Program Files\OpenSSL",
+          "C:\tools\php83",
+          "C:\ProgramData\chocolatey\lib\openssl"
+        )
 
-        Write-Host "Configuring CMake with OpenSSL at: $sslDir"
+        $sslDir = $null
+        foreach ($dir in $sslDirs) {
+          if (Test-Path "$dir\include\openssl\evp.h") {
+            $sslDir = $dir
+            break
+          }
+        }
 
-        # CMake가 라이브러리 파일(.lib / .a)을 100% 찾도록 직접 파일 경로 전달
-        $cryptoLib = Get-ChildItem -Path "$sslDir\lib" -Recurse -Filter "*crypto*" | Select-Object -First 1
-        $sslLib    = Get-ChildItem -Path "$sslDir\lib" -Recurse -Filter "*ssl*" | Select-Object -First 1
+        if (-not $sslDir) {
+          # 기본 경로 할당
+          $sslDir = "C:\Program Files\OpenSSL-Win64"
+        }
+
+        Write-Host "Found OpenSSL Root Dir: $sslDir"
 
         cmake -B build -G "MinGW Makefiles" `
           -DCMAKE_BUILD_TYPE=Release `
-          -DOPENSSL_ROOT_DIR="$sslDir" `
-          -DOPENSSL_INCLUDE_DIR="$sslDir\include" `
-          -DOPENSSL_CRYPTO_LIBRARY="$($cryptoLib.FullName)" `
-          -DOPENSSL_SSL_LIBRARY="$($sslLib.FullName)"
+          -DOPENSSL_ROOT_DIR="$sslDir"
 
-    # 4. 프로젝트 빌드
+    # 4. 프로젝트 컴파일 및 빌드
     - name: Build Project
       run: |
         cmake --build build --config Release
 
-    # 5. 실행 필요 DLL 배포 (Qt & OpenSSL DLL 복사)
+    # 5. Windows 실행 필요 DLL 자동 수집 (OpenSSL DLL 포함)
     - name: Deploy Windows Dependencies
       shell: powershell
       run: |
@@ -65,8 +76,11 @@ jobs:
           Set-Location $exePath.DirectoryName
           windeployqt --release --no-compiler-runtime .
           
-          # OpenSSL 3.x 실행 DLL (libcrypto-3-x64.dll, libssl-3-x64.dll 등) 수집
-          Get-ChildItem -Path "C:\Program Files\OpenSSL-Win64\bin", "C:\Program Files\OpenSSL\bin" -Filter "*.dll" -ErrorAction SilentlyContinue | Copy-Item -Destination . -ErrorAction SilentlyContinue
+          # OpenSSL DLL 복사
+          $dlls = Get-ChildItem -Path "C:\Program Files", "C:\tools" -Recurse -Filter "libcrypto*.dll" -ErrorAction SilentlyContinue
+          foreach ($dll in $dlls) {
+            Copy-Item $dll.FullName . -ErrorAction SilentlyContinue
+          }
         } else {
           Write-Error "lmc.exe not found in build directory"
         }
