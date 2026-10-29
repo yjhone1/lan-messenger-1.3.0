@@ -1,0 +1,47 @@
+name: Windows Release Build
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+
+    - name: Install Qt Environment
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: '6.10.2'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_mingw'
+        install-deps: 'true'
+
+    - name: Configure and Build Project (CMake)
+      run: |
+        cmake -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+        cmake --build build --config Release
+
+    - name: Deploy Windows Dependencies
+      run: |
+        cd build\lmc
+        windeployqt --release --no-compiler-runtime .
+
+    - name: Compress Release Artifact
+      run: |
+        powershell Compress-Archive -Path build\lmc\* -DestinationPath lan-messenger-windows-x64.zip
+
+    - name: Upload to GitHub Releases
+      uses: softprops/action-gh-release@v2
+      with:
+        files: lan-messenger-windows-x64.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
