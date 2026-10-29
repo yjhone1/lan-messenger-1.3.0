@@ -16,7 +16,7 @@ jobs:
     - name: Checkout Source Code
       uses: actions/checkout@v4
 
-    # 1. Qt 6.10.2 환경 설치
+    # 1. Qt 6.10.2 및 MinGW 환경 설치
     - name: Install Qt Environment
       uses: jurplel/install-qt-action@v4
       with:
@@ -26,32 +26,37 @@ jobs:
         arch: 'win64_mingw'
         install-deps: 'true'
 
-    # 2. OpenSSL 설치
-    - name: Install OpenSSL
+    # 2. OpenSSL 3.x 안정 버전 명시적 설치 (Chocolatey version 고정)
+    - name: Install OpenSSL 3.x
       run: |
-        choco install openssl --no-progress -y
+        choco install openssl --version=3.3.1 -y --no-progress --force
 
-    # 3. CMake 구성 (OpenSSL 실제 경로 탐색 및 전달)
+    # 3. CMake 구성 (OpenSSL 헤더/라이브러리 파일 직접 매핑)
     - name: Configure CMake
       shell: powershell
       run: |
         $sslDir = "C:\Program Files\OpenSSL-Win64"
         if (-not (Test-Path $sslDir)) { $sslDir = "C:\Program Files\OpenSSL" }
-        if (-not (Test-Path $sslDir)) { $sslDir = "C:\tools\openssl" }
-        
-        Write-Host "Using OPENSSL_ROOT_DIR: $sslDir"
-        
+
+        Write-Host "Configuring CMake with OpenSSL at: $sslDir"
+
+        # CMake가 라이브러리 파일(.lib / .a)을 100% 찾도록 직접 파일 경로 전달
+        $cryptoLib = Get-ChildItem -Path "$sslDir\lib" -Recurse -Filter "*crypto*" | Select-Object -First 1
+        $sslLib    = Get-ChildItem -Path "$sslDir\lib" -Recurse -Filter "*ssl*" | Select-Object -First 1
+
         cmake -B build -G "MinGW Makefiles" `
           -DCMAKE_BUILD_TYPE=Release `
           -DOPENSSL_ROOT_DIR="$sslDir" `
-          -DOPENSSL_INCLUDE_DIR="$sslDir/include"
+          -DOPENSSL_INCLUDE_DIR="$sslDir\include" `
+          -DOPENSSL_CRYPTO_LIBRARY="$($cryptoLib.FullName)" `
+          -DOPENSSL_SSL_LIBRARY="$($sslLib.FullName)"
 
     # 4. 프로젝트 빌드
     - name: Build Project
       run: |
         cmake --build build --config Release
 
-    # 5. Windows 필요 DLL 수집 (OpenSSL DLL 포함)
+    # 5. 실행 필요 DLL 배포 (Qt & OpenSSL DLL 복사)
     - name: Deploy Windows Dependencies
       shell: powershell
       run: |
@@ -60,16 +65,13 @@ jobs:
           Set-Location $exePath.DirectoryName
           windeployqt --release --no-compiler-runtime .
           
-          # OpenSSL DLL 동적 수집 및 복사
-          $sslDlls = Get-ChildItem -Path "C:\Program Files", "C:\tools" -Recurse -Filter "libcrypto*.dll" -ErrorAction SilentlyContinue
-          foreach ($dll in $sslDlls) {
-            Copy-Item $dll.FullName . -ErrorAction SilentlyContinue
-          }
+          # OpenSSL 3.x 실행 DLL (libcrypto-3-x64.dll, libssl-3-x64.dll 등) 수집
+          Get-ChildItem -Path "C:\Program Files\OpenSSL-Win64\bin", "C:\Program Files\OpenSSL\bin" -Filter "*.dll" -ErrorAction SilentlyContinue | Copy-Item -Destination . -ErrorAction SilentlyContinue
         } else {
           Write-Error "lmc.exe not found in build directory"
         }
 
-    # 6. Release 압축 파일 생성
+    # 6. Release 아티팩트 Zip 압축
     - name: Compress Release Artifact
       shell: powershell
       run: |
