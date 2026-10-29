@@ -26,11 +26,11 @@ jobs:
         arch: 'win64_mingw'
         install-deps: 'true'
 
-    # 2. CMake 구성 (Windows 러너 내장 OpenSSL / MinGW 경로 연결)
+    # 2. CMake 구성 (OpenSSL 라이브러리/헤더 경로 직접 지정)
     - name: Configure CMake
       shell: powershell
       run: |
-        # 윈도우 러너 기본 설치 OpenSSL / MinGW 경로 탐색
+        # 윈도우 러너 기본 OpenSSL 경로 검색
         $sslDir = "C:\Program Files\OpenSSL-Win64"
         if (-not (Test-Path "$sslDir\include\openssl\evp.h")) {
           $sslDir = "C:\Program Files\OpenSSL"
@@ -38,10 +38,19 @@ jobs:
 
         Write-Host "Using OpenSSL Directory: $sslDir"
 
+        # libcrypto 및 libssl 라이브러리 파일 직접 검색
+        $cryptoLib = Get-ChildItem -Path "$sslDir" -Recurse -Filter "*crypto*" | Where-Object { $_.Extension -match "\.(lib|a)$" } | Select-Object -First 1
+        $sslLib    = Get-ChildItem -Path "$sslDir" -Recurse -Filter "*ssl*"    | Where-Object { $_.Extension -match "\.(lib|a)$" } | Select-Object -First 1
+
+        Write-Host "Crypto Lib: $($cryptoLib.FullName)"
+        Write-Host "SSL Lib: $($sslLib.FullName)"
+
         cmake -B build -G "MinGW Makefiles" `
           -DCMAKE_BUILD_TYPE=Release `
           -DOPENSSL_ROOT_DIR="$sslDir" `
-          -DOPENSSL_INCLUDE_DIR="$sslDir\include"
+          -DOPENSSL_INCLUDE_DIR="$sslDir\include" `
+          -DOPENSSL_CRYPTO_LIBRARY="$($cryptoLib.FullName)" `
+          -DOPENSSL_SSL_LIBRARY="$($sslLib.FullName)"
 
     # 3. 프로젝트 컴파일/빌드
     - name: Build Project
@@ -57,7 +66,7 @@ jobs:
           Set-Location $exePath.DirectoryName
           windeployqt --release --no-compiler-runtime .
           
-          # OpenSSL DLL 복사
+          # OpenSSL DLL 수집
           Get-ChildItem -Path "C:\Program Files\OpenSSL-Win64\bin", "C:\Program Files\OpenSSL\bin" -Filter "*.dll" -ErrorAction SilentlyContinue | Copy-Item -Destination . -ErrorAction SilentlyContinue
         } else {
           Write-Error "lmc.exe not found in build directory"
