@@ -1,0 +1,8 @@
+cd ~/workspace/openoffice
+
+rm -rf .git
+git init
+git remote add origin https://github.com/yjhone1/openoffice.git
+git add -A
+git commit -m "Initial commit"
+# git push -u origin main
