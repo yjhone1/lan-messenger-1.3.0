@@ -26,30 +26,33 @@ jobs:
         arch: 'win64_mingw'
         install-deps: 'true'
 
-    # 2. MSYS2를 통해 MinGW 전용 OpenSSL 3.x 패키지 확보 및 CMake 연결
-    - name: Configure CMake (MinGW OpenSSL)
+    # 2. MSYS2 환경 구성 및 OpenSSL 3.x 설치
+    - name: Setup MSYS2 and Install OpenSSL
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          mingw-w64-x86_64-openssl
+
+    # 3. CMake 구성 (MSYS2 MinGW OpenSSL 경로 바인딩)
+    - name: Configure CMake
       shell: powershell
       run: |
-        # MSYS2 / MinGW 전용 OpenSSL 경로 설정
         $mingwSsl = "C:\msys64\mingw64"
-        if (-not (Test-Path "$mingwSsl\include\openssl\evp.h")) {
-          # 기본 MSYS2 mingw64 패키지 업데이트
-          pacman -Sy --noconfirm mingw-w64-x86_64-openssl
-        }
-
-        Write-Host "Using MinGW OpenSSL Dir: $mingwSsl"
+        Write-Host "Using MSYS2 MinGW OpenSSL Dir: $mingwSsl"
 
         cmake -B build -G "MinGW Makefiles" `
           -DCMAKE_BUILD_TYPE=Release `
           -DOPENSSL_ROOT_DIR="$mingwSsl" `
           -DOPENSSL_INCLUDE_DIR="$mingwSsl\include"
 
-    # 3. 프로젝트 컴파일/빌드
+    # 4. 프로젝트 컴파일/빌드
     - name: Build Project
       run: |
         cmake --build build --config Release
 
-    # 4. Windows 실행 필요 DLL 자동 수집
+    # 5. Windows 실행 필요 DLL 자동 수집
     - name: Deploy Windows Dependencies
       shell: powershell
       run: |
@@ -58,21 +61,21 @@ jobs:
           Set-Location $exePath.DirectoryName
           windeployqt --release --no-compiler-runtime .
           
-          # OpenSSL MinGW DLL 복사
+          # MSYS2 OpenSSL DLL 수집 복사
           Get-ChildItem -Path "C:\msys64\mingw64\bin" -Filter "libcrypto*.dll" -ErrorAction SilentlyContinue | Copy-Item -Destination . -ErrorAction SilentlyContinue
           Get-ChildItem -Path "C:\msys64\mingw64\bin" -Filter "libssl*.dll" -ErrorAction SilentlyContinue | Copy-Item -Destination . -ErrorAction SilentlyContinue
         } else {
           Write-Error "lmc.exe not found in build directory"
         }
 
-    # 5. Release 압축 파일 생성
+    # 6. Release 압축 파일 생성
     - name: Compress Release Artifact
       shell: powershell
       run: |
         $exeDir = (Get-ChildItem -Path build -Recurse -Filter "lmc.exe" | Select-Object -First 1).DirectoryName
         powershell Compress-Archive -Path "$exeDir\*" -DestinationPath "$env:GITHUB_WORKSPACE\lan-messenger-windows-x64.zip"
 
-    # 6. GitHub Release 업로드
+    # 7. GitHub Release 업로드
     - name: Upload to GitHub Releases
       uses: softprops/action-gh-release@v2
       with:
