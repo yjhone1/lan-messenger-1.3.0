@@ -16,7 +16,7 @@ jobs:
     - name: Checkout Source Code
       uses: actions/checkout@v4
 
-    # 1. MSYS2 세팅 및 MSYS2 전용 Compiler, CMake, OpenSSL, Qt6 패키지 일괄 설치
+    # 1. MSYS2 세팅 및 Compiler, CMake, OpenSSL, Qt6 패키지 일괄 설치
     - name: Setup MSYS2 and Install Dependencies
       uses: msys2/setup-msys2@v2
       with:
@@ -31,7 +31,7 @@ jobs:
           mingw-w64-x86_64-qt6-multimedia
           mingw-w64-x86_64-qt6-tools
 
-    # 2. MSYS2 Shell에서 CMake 빌드 수행 (MSYS2 Qt6 및 OpenSSL 자동 인식)
+    # 2. MSYS2 Shell에서 CMake 빌드 수행
     - name: Configure and Build (MSYS2 Shell)
       shell: msys2 {0}
       run: |
@@ -59,10 +59,13 @@ jobs:
         $exeDir = (Get-ChildItem -Path build -Recurse -Filter "lmc.exe" | Select-Object -First 1).DirectoryName
         powershell Compress-Archive -Path "$exeDir\*" -DestinationPath "$env:GITHUB_WORKSPACE\lan-messenger-windows-x64.zip"
 
-    # 5. GitHub Release 업로드
+    # 5. GitHub Release 업로드 (자동 태그 지정)
     - name: Upload to GitHub Releases
       uses: softprops/action-gh-release@v2
       with:
+        tag_name: "v0.0.0-latest"
+        name: "LAN Messenger Windows Release"
+        body: "Automated Windows build artifact generated from master branch."
         files: lan-messenger-windows-x64.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
