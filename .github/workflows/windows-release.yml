@@ -26,42 +26,57 @@ jobs:
         arch: 'win64_mingw'
         install-deps: 'true'
 
-    # 2. Windows 러너에 OpenSSL 설치 (Chocolatey 활용)
+    # 2. OpenSSL 설치
     - name: Install OpenSSL
       run: |
         choco install openssl --no-progress -y
 
-    # 3. CMake 구성 및 빌드 (OpenSSL 경로 명시)
+    # 3. CMake 구성 (OpenSSL 실제 경로 탐색 및 전달)
     - name: Configure CMake
+      shell: powershell
       run: |
-        cmake -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DOPENSSL_ROOT_DIR="C:/Program Files/OpenSSL-Win64"
+        $sslDir = "C:\Program Files\OpenSSL-Win64"
+        if (-not (Test-Path $sslDir)) { $sslDir = "C:\Program Files\OpenSSL" }
+        if (-not (Test-Path $sslDir)) { $sslDir = "C:\tools\openssl" }
+        
+        Write-Host "Using OPENSSL_ROOT_DIR: $sslDir"
+        
+        cmake -B build -G "MinGW Makefiles" `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DOPENSSL_ROOT_DIR="$sslDir" `
+          -DOPENSSL_INCLUDE_DIR="$sslDir/include"
 
+    # 4. 프로젝트 빌드
     - name: Build Project
       run: |
         cmake --build build --config Release
 
-    # 4. Windows 실행 필요 DLL 자동 수집 (OpenSSL DLL 포함)
+    # 5. Windows 필요 DLL 수집 (OpenSSL DLL 포함)
     - name: Deploy Windows Dependencies
+      shell: powershell
       run: |
         $exePath = (Get-ChildItem -Path build -Recurse -Filter "lmc.exe" | Select-Object -First 1)
         if ($exePath) {
           Set-Location $exePath.DirectoryName
           windeployqt --release --no-compiler-runtime .
-          # OpenSSL DLL도 출력 디렉터리로 복사
-          if (Test-Path "C:\Program Files\OpenSSL-Win64\bin\libssl-3-x64.dll") {
-            Copy-Item "C:\Program Files\OpenSSL-Win64\bin\*.dll" . -ErrorAction SilentlyContinue
+          
+          # OpenSSL DLL 동적 수집 및 복사
+          $sslDlls = Get-ChildItem -Path "C:\Program Files", "C:\tools" -Recurse -Filter "libcrypto*.dll" -ErrorAction SilentlyContinue
+          foreach ($dll in $sslDlls) {
+            Copy-Item $dll.FullName . -ErrorAction SilentlyContinue
           }
         } else {
           Write-Error "lmc.exe not found in build directory"
         }
 
-    # 5. 결과물 Zip 압축
+    # 6. Release 압축 파일 생성
     - name: Compress Release Artifact
+      shell: powershell
       run: |
         $exeDir = (Get-ChildItem -Path build -Recurse -Filter "lmc.exe" | Select-Object -First 1).DirectoryName
         powershell Compress-Archive -Path "$exeDir\*" -DestinationPath "$env:GITHUB_WORKSPACE\lan-messenger-windows-x64.zip"
 
-    # 6. GitHub Release 업로드
+    # 7. GitHub Release 업로드
     - name: Upload to GitHub Releases
       uses: softprops/action-gh-release@v2
       with:
