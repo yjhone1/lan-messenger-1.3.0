@@ -1,0 +1,62 @@
+{
+	"backtrace" : 0,
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : 
+		[
+			"lmc/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			}
+		]
+	},
+	"codemodelVersion" : 
+	{
+		"major" : 2,
+		"minor" : 9
+	},
+	"dependencies" : 
+	[
+		{
+			"backtrace" : 0,
+			"id" : "lmc_core::@98e9c00ac5b16aeee6b9"
+		},
+		{
+			"backtrace" : 0,
+			"id" : "lmc_runtime_files::@98e9c00ac5b16aeee6b9"
+		}
+	],
+	"id" : "lmc_autogen_timestamp_deps::@98e9c00ac5b16aeee6b9",
+	"isGeneratorProvided" : true,
+	"name" : "lmc_autogen_timestamp_deps",
+	"orderDependencies" : 
+	[
+		{
+			"backtrace" : 0,
+			"id" : "Qt6::moc::@8178d28804f6a0aff4d2"
+		},
+		{
+			"backtrace" : 0,
+			"id" : "Qt6::uic::@8178d28804f6a0aff4d2"
+		},
+		{
+			"backtrace" : 0,
+			"id" : "lmc_core::@98e9c00ac5b16aeee6b9"
+		},
+		{
+			"backtrace" : 0,
+			"id" : "lmc_runtime_files::@98e9c00ac5b16aeee6b9"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "lmc",
+		"source" : "lmc"
+	},
+	"sources" : [],
+	"type" : "UTILITY"
+}

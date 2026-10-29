@@ -1,0 +1,57 @@
+name: Windows Release Build
+
+on:
+  push:
+    branches:
+      - master # v1.0.0 같은 태그를 푸시할 때 빌드가 시작됩니다.
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+
+    # 1. Qt 6.10.x 환경 설치 및 MinGW 설정
+    - name: Install Qt Environment
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: '6.10.2'              # 사용 중이신 Qt 버전 일치
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_mingw'            # GCC(MinGW) 컴파일러 환경 사용
+        install-deps: 'true'
+
+    # 2. 빌드 전용 임시 디렉토리 생성 및 빌드 (Qmake 방식)
+    - name: Compile Qt Project
+      run: |
+        mkdir build_output
+        cd build_output
+        qmake ..\lan-messenger.pro
+        mingw32-make release
+
+    # 3. Windows 10/11 실행에 필요한 Qt 필수 DLL 자동 수집
+    - name: Deploy Windows Dependencies
+      run: |
+        cd build_output\release
+        windeployqt lan-messenger.exe
+
+    # 4. 압축 파일 생성
+    - name: Compress Release Artifact
+      run: |
+        powershell Compress-Archive -Path build_output\release\* -DestinationPath lan-messenger-windows-x64.zip
+
+    # 5. 원본 소스는 건드리지 않고 GitHub Releases에 실행 파일만 업로드
+    - name: Upload to GitHub Releases
+      uses: softprops/action-gh-release@v2
+      with:
+        files: lan-messenger-windows-x64.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+ 
+ 
