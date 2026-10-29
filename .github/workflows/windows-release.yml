@@ -26,38 +26,30 @@ jobs:
         arch: 'win64_mingw'
         install-deps: 'true'
 
-    # 2. CMake 구성 (OpenSSL 라이브러리/헤더 경로 직접 지정)
-    - name: Configure CMake
+    # 2. MSYS2를 통해 MinGW 전용 OpenSSL 3.x 패키지 확보 및 CMake 연결
+    - name: Configure CMake (MinGW OpenSSL)
       shell: powershell
       run: |
-        # 윈도우 러너 기본 OpenSSL 경로 검색
-        $sslDir = "C:\Program Files\OpenSSL-Win64"
-        if (-not (Test-Path "$sslDir\include\openssl\evp.h")) {
-          $sslDir = "C:\Program Files\OpenSSL"
+        # MSYS2 / MinGW 전용 OpenSSL 경로 설정
+        $mingwSsl = "C:\msys64\mingw64"
+        if (-not (Test-Path "$mingwSsl\include\openssl\evp.h")) {
+          # 기본 MSYS2 mingw64 패키지 업데이트
+          pacman -Sy --noconfirm mingw-w64-x86_64-openssl
         }
 
-        Write-Host "Using OpenSSL Directory: $sslDir"
-
-        # libcrypto 및 libssl 라이브러리 파일 직접 검색
-        $cryptoLib = Get-ChildItem -Path "$sslDir" -Recurse -Filter "*crypto*" | Where-Object { $_.Extension -match "\.(lib|a)$" } | Select-Object -First 1
-        $sslLib    = Get-ChildItem -Path "$sslDir" -Recurse -Filter "*ssl*"    | Where-Object { $_.Extension -match "\.(lib|a)$" } | Select-Object -First 1
-
-        Write-Host "Crypto Lib: $($cryptoLib.FullName)"
-        Write-Host "SSL Lib: $($sslLib.FullName)"
+        Write-Host "Using MinGW OpenSSL Dir: $mingwSsl"
 
         cmake -B build -G "MinGW Makefiles" `
           -DCMAKE_BUILD_TYPE=Release `
-          -DOPENSSL_ROOT_DIR="$sslDir" `
-          -DOPENSSL_INCLUDE_DIR="$sslDir\include" `
-          -DOPENSSL_CRYPTO_LIBRARY="$($cryptoLib.FullName)" `
-          -DOPENSSL_SSL_LIBRARY="$($sslLib.FullName)"
+          -DOPENSSL_ROOT_DIR="$mingwSsl" `
+          -DOPENSSL_INCLUDE_DIR="$mingwSsl\include"
 
     # 3. 프로젝트 컴파일/빌드
     - name: Build Project
       run: |
         cmake --build build --config Release
 
-    # 4. Windows 실행 필요 DLL 자동 수집 (Qt & OpenSSL DLL)
+    # 4. Windows 실행 필요 DLL 자동 수집
     - name: Deploy Windows Dependencies
       shell: powershell
       run: |
@@ -66,8 +58,9 @@ jobs:
           Set-Location $exePath.DirectoryName
           windeployqt --release --no-compiler-runtime .
           
-          # OpenSSL DLL 수집
-          Get-ChildItem -Path "C:\Program Files\OpenSSL-Win64\bin", "C:\Program Files\OpenSSL\bin" -Filter "*.dll" -ErrorAction SilentlyContinue | Copy-Item -Destination . -ErrorAction SilentlyContinue
+          # OpenSSL MinGW DLL 복사
+          Get-ChildItem -Path "C:\msys64\mingw64\bin" -Filter "libcrypto*.dll" -ErrorAction SilentlyContinue | Copy-Item -Destination . -ErrorAction SilentlyContinue
+          Get-ChildItem -Path "C:\msys64\mingw64\bin" -Filter "libssl*.dll" -ErrorAction SilentlyContinue | Copy-Item -Destination . -ErrorAction SilentlyContinue
         } else {
           Write-Error "lmc.exe not found in build directory"
         }
