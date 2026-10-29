@@ -16,18 +16,8 @@ jobs:
     - name: Checkout Source Code
       uses: actions/checkout@v4
 
-    # 1. Qt 6.10.2 환경 설치
-    - name: Install Qt Environment
-      uses: jurplel/install-qt-action@v4
-      with:
-        version: '6.10.2'
-        host: 'windows'
-        target: 'desktop'
-        arch: 'win64_mingw'
-        install-deps: 'true'
-
-    # 2. MSYS2 세팅 및 MSYS2 전용 CMake/OpenSSL 설치
-    - name: Setup MSYS2
+    # 1. MSYS2 세팅 및 MSYS2 전용 Compiler, CMake, OpenSSL, Qt6 패키지 일괄 설치
+    - name: Setup MSYS2 and Install Dependencies
       uses: msys2/setup-msys2@v2
       with:
         msystem: MINGW64
@@ -37,38 +27,39 @@ jobs:
           mingw-w64-x86_64-make
           mingw-w64-x86_64-gcc
           mingw-w64-x86_64-openssl
+          mingw-w64-x86_64-qt6-base
+          mingw-w64-x86_64-qt6-multimedia
+          mingw-w64-x86_64-qt6-tools
 
-    # 3. MSYS2 Shell에서 CMake 빌드 수행 (MSYS2 패키지 자동 연동)
+    # 2. MSYS2 Shell에서 CMake 빌드 수행 (MSYS2 Qt6 및 OpenSSL 자동 인식)
     - name: Configure and Build (MSYS2 Shell)
       shell: msys2 {0}
       run: |
         cmake -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
         cmake --build build --config Release
 
-    # 4. Windows 필요 DLL 자동 수집 (Qt & OpenSSL)
+    # 3. Windows 필요 DLL 자동 수집 (windeployqt 및 OpenSSL DLL)
     - name: Deploy Windows Dependencies
-      shell: powershell
+      shell: msys2 {0}
       run: |
-        $exePath = (Get-ChildItem -Path build -Recurse -Filter "lmc.exe" | Select-Object -First 1)
-        if ($exePath) {
-          Set-Location $exePath.DirectoryName
+        EXE_DIR=$(find build -name "lmc.exe" -exec dirname {} \;)
+        if [ -n "$EXE_DIR" ]; then
+          cd "$EXE_DIR"
           windeployqt --release --no-compiler-runtime .
-          
-          # MSYS2 OpenSSL DLL 수집 복사
-          Get-ChildItem -Path "C:\msys64\mingw64\bin" -Filter "libcrypto*.dll" -ErrorAction SilentlyContinue | Copy-Item -Destination . -ErrorAction SilentlyContinue
-          Get-ChildItem -Path "C:\msys64\mingw64\bin" -Filter "libssl*.dll" -ErrorAction SilentlyContinue | Copy-Item -Destination . -ErrorAction SilentlyContinue
-        } else {
-          Write-Error "lmc.exe not found in build directory"
-        }
+          cp /mingw64/bin/libcrypto*.dll . 2>/dev/null || true
+          cp /mingw64/bin/libssl*.dll . 2>/dev/null || true
+        else
+          echo "Error: lmc.exe not found" && exit 1
+        fi
 
-    # 5. Release 압축 파일 생성
+    # 4. Release 압축 파일 생성
     - name: Compress Release Artifact
       shell: powershell
       run: |
         $exeDir = (Get-ChildItem -Path build -Recurse -Filter "lmc.exe" | Select-Object -First 1).DirectoryName
         powershell Compress-Archive -Path "$exeDir\*" -DestinationPath "$env:GITHUB_WORKSPACE\lan-messenger-windows-x64.zip"
 
-    # 6. GitHub Release 업로드
+    # 5. GitHub Release 업로드
     - name: Upload to GitHub Releases
       uses: softprops/action-gh-release@v2
       with:
