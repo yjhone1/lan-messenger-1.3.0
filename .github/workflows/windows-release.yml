@@ -16,7 +16,7 @@ jobs:
     - name: Checkout Source Code
       uses: actions/checkout@v4
 
-    # 1. Qt 6.10.2 및 Ninja, MinGW 설정
+    # 1. Qt 6.10.2 및 MinGW 컴파일러 환경 설치
     - name: Install Qt Environment
       uses: jurplel/install-qt-action@v4
       with:
@@ -26,31 +26,33 @@ jobs:
         arch: 'win64_mingw'
         install-deps: 'true'
 
-    - name: Setup Ninja
-      uses: meysamtaher/setup-ninja@v1
-
-    # 2. CMake 빌드 (Ninja 제너레이터 사용)
+    # 2. CMake 구성 및 빌드 (기본 MinGW Makefiles 사용)
     - name: Configure CMake
       run: |
-        cmake -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
+        cmake -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
 
     - name: Build Project
       run: |
         cmake --build build --config Release
 
-    # 3. Windows 의존성 파일(DLL) 수집
+    # 3. Windows 실행 필요 DLL 자동 수집
     - name: Deploy Windows Dependencies
       run: |
-        Get-ChildItem -Path build -Recurse -Filter "lmc.exe" | Select-Object -ExpandProperty DirectoryName | Set-Location
-        windeployqt --release --no-compiler-runtime .
+        $exePath = (Get-ChildItem -Path build -Recurse -Filter "lmc.exe" | Select-Object -First 1)
+        if ($exePath) {
+          Set-Location $exePath.DirectoryName
+          windeployqt --release --no-compiler-runtime .
+        } else {
+          Write-Error "lmc.exe not found in build directory"
+        }
 
-    # 4. 압축 파일 생성
+    # 4. 결과물 Zip 압축
     - name: Compress Release Artifact
       run: |
-        $exeDir = (Get-ChildItem -Path build -Recurse -Filter "lmc.exe").DirectoryName
+        $exeDir = (Get-ChildItem -Path build -Recurse -Filter "lmc.exe" | Select-Object -First 1).DirectoryName
         powershell Compress-Archive -Path "$exeDir\*" -DestinationPath "$env:GITHUB_WORKSPACE\lan-messenger-windows-x64.zip"
 
-    # 5. GitHub Releases에 업로드
+    # 5. GitHub Release 업로드
     - name: Upload to GitHub Releases
       uses: softprops/action-gh-release@v2
       with:
